@@ -7,7 +7,7 @@ import sys
 
 # --- TARGET CONFIGURATION ---
 # Lu bisa ganti targetnya di sini
-TARGETS = ["https://inihari88.shop/", "https://inihari88.website/"]
+TARGETS = ["https://inihari88.shop/", "https://ingatcuan88.pro/amp/"]
 
 def rs(length=30):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
